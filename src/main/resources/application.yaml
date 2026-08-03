@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: "optional:file:.env[.properties]"
   application:
     name: incident-board
 
@@ -20,6 +22,7 @@ spring:
       schema-locations: classpath:schema.sql
 
 ai:
+  api-key: ${ANTHROPIC_API_KEY:}
   api-url: https://api.anthropic.com/v1/messages
   model: claude-haiku-4-5-20251001
   rule-version: v1

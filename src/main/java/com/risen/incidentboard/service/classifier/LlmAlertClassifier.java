@@ -71,11 +71,12 @@ public class LlmAlertClassifier implements AlertClassifier {
 
     public LlmAlertClassifier(@Value("${ai.api-url}") String apiUrl,
                               @Value("${ai.model}") String model,
-                              @Value("${ai.timeout-seconds}") int timeoutSeconds) {
+                              @Value("${ai.timeout-seconds}") int timeoutSeconds,
+                              @Value("${ai.api-key:}") String apiKey) {
         this.apiUrl = apiUrl;
         this.model = model;
         this.timeoutSeconds = timeoutSeconds;
-        this.apiKey = System.getenv("ANTHROPIC_API_KEY");
+        this.apiKey = apiKey;
         this.http = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(timeoutSeconds))
                 .build();
