@@ -1,0 +1,240 @@
+# Renewable Operations Incident Board
+
+A small board for a renewable energy operations team: triage open alerts from solar
+and battery sites, understand what happened, and record follow-up actions.
+
+Java 17 · Spring Boot 4.0.7 · SQLite via JdbcClient · vanilla JS front end.
+
+## Run it
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...   # optional; see "Without a key" below
+./mvnw spring-boot:run
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:ANTHROPIC_API_KEY = "sk-ant-..."
+.\mvnw spring-boot:run
+```
+
+Board: <http://localhost:8080>  ·  API docs: <http://localhost:8080/swagger-ui.html>
+
+The database is a file, `incident-board.db`, created on first run.
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--reset   # fresh database
+./mvnw test
+```
+
+**Your changes survive a restart.** Seeding is skipped when the `alerts` table is
+non-empty, so a status change or a note you add is still there next time. Use
+`--reset` when you want the fixture back.
+
+### Without a key
+
+Everything works. Alerts classify by keyword matching instead of the model, rows
+are marked `keyword fallback`, and the banner says the key is missing. This is the
+designed degraded path, not an error state — see "AI analysis" below.
+
+## What it does
+
+**Ordering.** Severity first, always: critical, high, medium, low. Within the
+critical and high bands, alerts are ordered by the AI signal (§ below). Medium
+and low order by time, newest first. Ties break on timestamp then id, so the list
+does not shuffle between loads.
+
+**Filters.** Site and status, combining as AND. Resolved and dismissed are hidden
+on load — as default filter state, not a hard exclusion. The count of what is
+hidden is shown, and "All statuses" reaches it.
+
+**Detail.** Open an alert to change its status or add a follow-up note.
+
+## Severity and priority are different things
+
+This distinction drives the whole design.
+
+*Severity* is ground truth from the source system. It is not editable here and the
+model does not get a vote. *Priority* is a judgment: within one severity tier,
+which alert to open first, and the only thing that separates them is the free-text
+description.
+
+The AI works only in that second space. It reorders **within** a tier, never
+across one. So the top of the list is always a critical alert, whether or not you
+trust the model.
+
+## AI analysis
+
+Press **Run AI analysis**. It is not automatic — an explicit trigger makes the
+model's contribution legible (you see the list before and after) and means the
+board is fully usable for someone who never presses it.
+
+Per alert, the model returns one signal from a closed set plus a short action:
+
+```json
+{"signal": "safety_hazard", "suggested_action": "Restrict site access, dispatch crew"}
+```
+
+| Rank | Signal | |
+|---|---|---|
+| 0 | `safety_hazard` | Risk to people or equipment integrity |
+| 1 | `escalation_risk` | Degrading; will worsen if left |
+| 2 | `site_wide_impact` | Whole site rather than one asset |
+| 3 | `field_visit_required` | Needs a crew on site |
+| 4 | `none` | Nothing notable in the description |
+| 5 | `likely_transient` | Contained or self-clearing |
+
+Two things are deliberate here. **`none` outranks `likely_transient`**, so a
+description that positively says the issue has passed is demoted below one the
+model had nothing to say about — absence of a signal is not evidence of
+harmlessness. And **the model returns a bucket, not a score or a ranking**:
+ordering is then derived in SQL. That is what makes the feature testable — a test
+asserts a description maps to an expected bucket, which is a stable claim, where
+asserting a list position is not.
+
+**Scope.** Critical and high only, and only alerts passing the current filter.
+Reordering the low-severity tail does not change what anyone does next, so
+spending inference on it buys nothing.
+
+**Fallback.** Any LLM failure — timeout, non-200, malformed JSON, out-of-set
+signal, missing key — degrades to keyword matching against the same closed set,
+evaluated in priority order, first match wins. The fallback cannot raise: it is
+string matching over a static table with no I/O, and is additionally wrapped so
+an unforeseen error yields `none`. An analysis run cannot fail the request.
+
+**`ai_path` is shown, not just stored.** A run that silently degraded to keyword
+matching while still producing plausible-looking actions is exactly the failure an
+operator must be able to see.
+
+| `ai_path` | |
+|---|---|
+| `llm` | Model returned a valid signal |
+| `fallback` | Model failed; keyword matching used |
+| `skipped` | Medium or low — in scope, deliberately not classified |
+| `null` | No run has reached this alert yet |
+
+`skipped` versus `null` is the distinction between a decision and an absence.
+Collapsing them would make it impossible to tell whether a medium-severity alert
+was excluded by design or simply never analysed.
+
+The model never changes severity and never changes status. Suggested actions are
+display-only and never enter the note history.
+
+## Notes and status
+
+Notes are **append-only**. No edit, no delete, no endpoint for either. Correction
+is by appending: a mistaken note is followed by a corrective one and both remain.
+This record may end up supporting a compliance response or a warranty claim, and
+one that can be quietly rewritten is worth less in that context.
+
+**Every status change writes a system-authored note:**
+
+```
+Status changed: acknowledged -> investigating
+```
+
+That is what lets the schema carry no status history table. The transitions sit in
+the same timeline as the operator's notes, interleaved chronologically, and are
+written in the same transaction as the status update so the two cannot diverge.
+
+In the timeline, system notes stay in monospace and operator notes switch to a
+sans face — the two voices are distinguishable before you read a word.
+
+Handled in code:
+
+- Empty or whitespace-only note → `400`
+- Over 2000 characters → `400`
+- Backward transitions allowed (`resolved -> investigating`)
+- Notes can be added in any status, including closed
+- No-op transitions rejected — otherwise the append-only log fills with
+  `investigating -> investigating` entries that can never be cleaned up
+
+## Data
+
+Three tables: `sites` → `alerts` → `notes`, both one-to-many. `notes` starts empty.
+
+**No ORM.** SQLite has no dialect in Hibernate core, so JPA here means depending on
+`hibernate-community-dialects` and hoping it keeps pace with each Hibernate
+release. The design never needed one anyway: three tables, no object graph, and
+the ordering query below was always going to be hand-written SQL. Persistence is
+`JdbcClient` with records as row types and explicit row mappers. The layering is
+unchanged — each repository is an interface with one implementation — but rows are
+immutable and every write is an explicit statement, so nothing persists at a flush
+boundary that the code did not ask for.
+
+The AI result lives on the `alerts` row (`ai_signal`, `ai_action`, `ai_path`,
+`ai_run_at`, `ai_rule_version`) rather than in its own table — the relationship is
+strictly one-to-one and the result has no independent lifecycle, so a separate
+table would add a join to the hottest query in exchange for nothing.
+
+Persisting it also means the whole three-level sort is a single `ORDER BY`, so
+ordering has exactly one implementation and the client renders the array it is
+handed.
+
+Two SQLite details worth flagging:
+
+- **Foreign keys are off by default.** `foreign_keys=on` travels in the JDBC URL,
+  so it holds for every pooled connection rather than only the first.
+- **Boot 4 ships Jackson 3**, at `tools.jackson` rather than `com.fasterxml.jackson`,
+  with an immutable `JsonMapper` in place of `ObjectMapper`. Only the annotations
+  kept their old package.
+- **Timestamps are stored as UTC**, fixed-width to the second. SQLite compares
+  `TEXT` lexicographically, so mixed offsets would sort wrongly — the fixture
+  spans `+10:00` and `+09:30`. (The current data does not actually trigger it;
+  the point is that it is one added alert away, and it would surface as a quietly
+  misordered list rather than an error.)
+
+`ai_rule_version` records which version of the signal set, keyword table and
+prompt produced a stored result, so that after a classifier change you can tell
+which rows are stale rather than holding a silent mixture.
+
+## Assumptions
+
+- Single user. No auth; `author` is a fixed placeholder for operator notes.
+- Alerts are read-only apart from status — severity and description are owned by
+  the source system.
+- Small dataset, so no pagination and ordering is computed per request.
+- Descriptions are untrusted third-party text: rendered as plain text, and passed
+  to the model inside a delimited block labelled as untrusted, so that
+  instruction-like text in a vendor field reads as content rather than direction.
+
+## Known limitations
+
+- **Double submission** is prevented by disabling the button for the round trip.
+  That covers the impatient double-click but not a retry at the network layer,
+  which in an append-only log would leave a permanent duplicate. An idempotency
+  key is the real fix.
+- **Classification quality is not measured.** The cheapest instrument would be
+  logging the position an alert held when it was opened: if operators
+  consistently skip the top-ranked alert, the ranking is wrong.
+- **Stale rule versions are detectable but not acted on.** Nothing yet flags a row
+  classified under a superseded version.
+- **Related alerts are not grouped.** The fixture contains a causal chain at Broken
+  Hill — HVAC failure, widening cell imbalance, rack contactor trip, across 23
+  minutes. Showing those as three peers is misleading, and grouping them is the
+  most valuable next feature.
+- **Timezone display** is viewer-local. Site-local is equally defensible and needs
+  an operator to arbitrate.
+
+## AI usage disclosure
+
+This project was built with heavy use of Claude. The design decisions —
+severity/priority separation, the closed signal set over a numeric score,
+persisting the classification on the alert row, append-only notes carrying status
+history — were mine, argued out across a design conversation before any code was
+written. Claude wrote most of the implementation from that design, and I reviewed
+and corrected it.
+
+Worth stating plainly, since the code was not run before submission: the sandbox
+Claude worked in had no Java compiler and no access to Maven Central, so nothing
+Java-side was compiled there. The Boot 4 details above — Jackson 3's package move,
+the `spring-boot-starter-webmvc` rename, springdoc's 3.x line — were checked
+against current sources rather than recalled, because Boot 4 post-dates the
+model's training data. What *was* verified, against real SQLite with the
+real fixture: `schema.sql` executes, the `CHECK` constraints and foreign keys
+reject bad input, and the ordering query produces correct output for severity
+bands, signal ranking within a band, null signals sorting at the `none` rank, and
+the status filter. That verification also caught a bug in my own test — I had
+asserted that medium and low alerts form one time-ordered sequence, when they are
+separate bands and the oldest medium legitimately precedes the newest low.

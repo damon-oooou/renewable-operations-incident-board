@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: incident-board
+
+  datasource:
+    # foreign_keys=on travels with the JDBC URL: SQLite disables FK enforcement
+    # per connection by default, so setting it once at startup would not survive
+    # the pool handing out a second connection.
+    url: "jdbc:sqlite:incident-board.db?foreign_keys=on"
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite serialises writes at the file level. One connection avoids
+      # SQLITE_BUSY entirely; with a single operator there is nothing to gain
+      # from more.
+      maximum-pool-size: 1
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+ai:
+  api-url: https://api.anthropic.com/v1/messages
+  model: claude-haiku-4-5-20251001
+  rule-version: v1
+  timeout-seconds: 20
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.risen.incidentboard: INFO

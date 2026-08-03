@@ -1,0 +1,242 @@
+{
+  "sites": [
+    {
+      "id": "SITE-01",
+      "name": "Wagga North Solar Farm",
+      "region": "NSW",
+      "technology": "SOLAR",
+      "capacity": "85 MW"
+    },
+    {
+      "id": "SITE-02",
+      "name": "Moree East Solar Farm",
+      "region": "NSW",
+      "technology": "SOLAR",
+      "capacity": "56 MW"
+    },
+    {
+      "id": "SITE-03",
+      "name": "Broken Hill BESS",
+      "region": "NSW",
+      "technology": "BATTERY",
+      "capacity": "50 MW / 100 MWh"
+    },
+    {
+      "id": "SITE-04",
+      "name": "Riverina Energy Hub",
+      "region": "NSW",
+      "technology": "HYBRID",
+      "capacity": "120 MW + 40 MW / 80 MWh"
+    },
+    {
+      "id": "SITE-05",
+      "name": "Port Wakefield BESS",
+      "region": "SA",
+      "technology": "BATTERY",
+      "capacity": "30 MW / 60 MWh"
+    },
+    {
+      "id": "SITE-06",
+      "name": "Bungala Ridge Solar Farm",
+      "region": "SA",
+      "technology": "SOLAR",
+      "capacity": "110 MW"
+    },
+    {
+      "id": "SITE-07",
+      "name": "Dalby Downs Solar Farm",
+      "region": "QLD",
+      "technology": "SOLAR",
+      "capacity": "75 MW"
+    },
+    {
+      "id": "SITE-08",
+      "name": "Kerang West Hybrid",
+      "region": "VIC",
+      "technology": "HYBRID",
+      "capacity": "60 MW + 20 MW / 40 MWh"
+    }
+  ],
+  "alerts": [
+    {
+      "id": "ALT-0001",
+      "siteId": "SITE-03",
+      "occurredAt": "2026-08-03T08:42:00+10:00",
+      "type": "THERMAL_MANAGEMENT",
+      "severity": "CRITICAL",
+      "status": "NEW",
+      "description": "HVAC unit 2 serving battery container B04 has stopped responding. Container ambient temperature has climbed to 41 C against a 35 C alarm threshold and rack cooling fans are running at 100 percent. The site controller has applied an automatic derate to 60 percent power."
+    },
+    {
+      "id": "ALT-0002",
+      "siteId": "SITE-03",
+      "occurredAt": "2026-08-03T08:47:00+10:00",
+      "type": "BATTERY_CELL_IMBALANCE",
+      "severity": "HIGH",
+      "status": "ACKNOWLEDGED",
+      "description": "Rack B04-07 reporting a 118 mV spread between highest and lowest cell voltage at 62 percent SOC, against an 80 mV threshold. The BMS has flagged the rack for balancing but the delta is widening as container temperature rises."
+    },
+    {
+      "id": "ALT-0003",
+      "siteId": "SITE-03",
+      "occurredAt": "2026-08-03T09:05:00+10:00",
+      "type": "PROTECTION_TRIP",
+      "severity": "CRITICAL",
+      "status": "NEW",
+      "description": "DC contactor on rack B04-07 opened on overtemperature protection and the rack is now isolated from the string. Available site capacity has dropped from 50 MW to 46 MW. FCAS availability needs to be revised before the next dispatch interval."
+    },
+    {
+      "id": "ALT-0004",
+      "siteId": "SITE-01",
+      "occurredAt": "2026-08-03T07:15:00+10:00",
+      "type": "INVERTER_FAULT",
+      "severity": "HIGH",
+      "status": "INVESTIGATING",
+      "description": "Central inverter INV-12 tripped on DC insulation resistance during the morning ramp, measuring 340 kOhm against a 500 kOhm trip point. Two automatic restart attempts have failed. Approximately 3.2 MW is unavailable."
+    },
+    {
+      "id": "ALT-0005",
+      "siteId": "SITE-08",
+      "occurredAt": "2026-08-03T06:58:00+10:00",
+      "type": "COMMS_LOSS",
+      "severity": "MEDIUM",
+      "status": "NEW",
+      "description": "Datalogger DL-02 has been unreachable for 22 minutes. Telemetry from 14 string combiner boxes and the site weather station is stale. The main site controller is still responding on the primary path so dispatch is unaffected."
+    },
+    {
+      "id": "ALT-0006",
+      "siteId": "SITE-05",
+      "occurredAt": "2026-08-02T13:24:00+09:30",
+      "type": "CURTAILMENT",
+      "severity": "LOW",
+      "status": "RESOLVED",
+      "description": "Charge power limited to 12 MW for 95 minutes by a network constraint after loading on the local 132 kV feeder exceeded its limit. Charging was shifted later in the afternoon and the evening discharge target was still met. No equipment fault."
+    },
+    {
+      "id": "ALT-0007",
+      "siteId": "SITE-06",
+      "occurredAt": "2026-08-02T12:10:00+09:30",
+      "type": "CURTAILMENT",
+      "severity": "MEDIUM",
+      "status": "RESOLVED",
+      "description": "Site curtailed to 30 percent of available output for 3 hours 40 minutes during a negative spot price event in South Australia. Roughly 210 MWh of generation was forgone. Dispatch targets were followed correctly throughout."
+    },
+    {
+      "id": "ALT-0008",
+      "siteId": "SITE-07",
+      "occurredAt": "2026-08-02T11:47:00+10:00",
+      "type": "TRACKER_FAULT",
+      "severity": "MEDIUM",
+      "status": "INVESTIGATING",
+      "description": "Tracker rows 41 to 48 have stalled at 12 degrees east while the rest of the array tracked through to 4 degrees west. Row controller RC-06 is reporting motor overcurrent on row 44. Estimated yield loss of 1.8 percent while the rows remain stalled."
+    },
+    {
+      "id": "ALT-0009",
+      "siteId": "SITE-04",
+      "occurredAt": "2026-08-02T10:33:00+10:00",
+      "type": "GRID_COMPLIANCE",
+      "severity": "HIGH",
+      "status": "ACKNOWLEDGED",
+      "description": "Voltage at the point of connection reached 1.11 pu for 4.2 seconds after an upstream network event. The plant rode through, but reactive power response was slower than the connection agreement requires. A model comparison has been requested from the OEM."
+    },
+    {
+      "id": "ALT-0010",
+      "siteId": "SITE-01",
+      "occurredAt": "2026-08-02T09:15:00+10:00",
+      "type": "STRING_UNDERPERFORMANCE",
+      "severity": "MEDIUM",
+      "status": "NEW",
+      "description": "Combiner box CB-27 is delivering 68 percent of the current of neighbouring boxes under matching irradiance. The pattern points to two open-circuit strings rather than soiling, and has persisted across three consecutive clear-sky days."
+    },
+    {
+      "id": "ALT-0011",
+      "siteId": "SITE-04",
+      "occurredAt": "2026-08-01T16:52:00+10:00",
+      "type": "BATTERY_SOC_DEVIATION",
+      "severity": "HIGH",
+      "status": "INVESTIGATING",
+      "description": "Measured SOC diverged from the site controller model by 8.4 percent during the evening discharge, and the unit reached its lower limit before completing the dispatch instruction. Likely SOC estimator drift, with the last full calibration cycle 94 days ago."
+    },
+    {
+      "id": "ALT-0012",
+      "siteId": "SITE-02",
+      "occurredAt": "2026-08-01T14:20:00+10:00",
+      "type": "SENSOR_FAULT",
+      "severity": "LOW",
+      "status": "RESOLVED",
+      "description": "Plane-of-array pyranometer POA-02 was reading 140 W/m2 below POA-01 and POA-03 under uniform sky. A technician found bird soiling on the dome and cleaned it. Performance ratio figures for 31 July and 1 August need recalculating."
+    },
+    {
+      "id": "ALT-0013",
+      "siteId": "SITE-07",
+      "occurredAt": "2026-08-01T12:05:00+10:00",
+      "type": "INVERTER_FAULT",
+      "severity": "MEDIUM",
+      "status": "RESOLVED",
+      "description": "String inverter INV-3A-14 shut down on internal overtemperature at 78 C with ambient at 34 C. The cooling fan intake was found blocked with dust and vegetation debris. Cleaned and returned to service after 46 minutes."
+    },
+    {
+      "id": "ALT-0014",
+      "siteId": "SITE-03",
+      "occurredAt": "2026-07-31T23:41:00+10:00",
+      "type": "SAFETY_SECURITY",
+      "severity": "HIGH",
+      "status": "RESOLVED",
+      "description": "Perimeter intrusion detection triggered on the eastern fence line. CCTV review showed kangaroos inside the exclusion zone with no damage to equipment or fencing. A gap in the fence on the north-east corner has been logged for repair."
+    },
+    {
+      "id": "ALT-0015",
+      "siteId": "SITE-08",
+      "occurredAt": "2026-07-31T18:30:00+10:00",
+      "type": "GRID_COMPLIANCE",
+      "severity": "LOW",
+      "status": "RESOLVED",
+      "description": "Frequency excursion to 49.78 Hz in the Victorian region. The unit delivered its registered contingency FCAS response within 6 seconds. Logged for the monthly compliance report with no further action required."
+    },
+    {
+      "id": "ALT-0016",
+      "siteId": "SITE-02",
+      "occurredAt": "2026-07-31T10:12:00+10:00",
+      "type": "COMMS_LOSS",
+      "severity": "CRITICAL",
+      "status": "RESOLVED",
+      "description": "Complete loss of site telemetry and remote control for 68 minutes after the primary 4G modem failed and the satellite backup did not take over. The plant kept generating but was not dispatchable. AEMO was notified under market participant obligations."
+    },
+    {
+      "id": "ALT-0017",
+      "siteId": "SITE-06",
+      "occurredAt": "2026-07-30T15:26:00+09:30",
+      "type": "STRING_UNDERPERFORMANCE",
+      "severity": "LOW",
+      "status": "DISMISSED",
+      "description": "Automated soiling alert raised after performance ratio fell to 0.79. Review found the drop was caused by three days of high cloud and smoke haze from regional burn-offs rather than module soiling. The alert threshold should be reviewed."
+    },
+    {
+      "id": "ALT-0018",
+      "siteId": "SITE-04",
+      "occurredAt": "2026-07-30T11:08:00+10:00",
+      "type": "THERMAL_MANAGEMENT",
+      "severity": "MEDIUM",
+      "status": "ACKNOWLEDGED",
+      "description": "Coolant pump P-2 in battery container A01 is cycling on and off every 4 minutes instead of running continuously. No temperature exceedance yet, but the duty cycle suggests a failing flow sensor or air in the loop. A vendor callout has been raised."
+    },
+    {
+      "id": "ALT-0019",
+      "siteId": "SITE-01",
+      "occurredAt": "2026-07-30T05:47:00+10:00",
+      "type": "PROTECTION_TRIP",
+      "severity": "HIGH",
+      "status": "RESOLVED",
+      "description": "The 33 kV feeder circuit breaker CB-2 opened on earth fault protection during overnight storms. Inspection found a failed surge arrester on the feeder. The arrester was replaced and the feeder returned to service after 5 hours 12 minutes."
+    },
+    {
+      "id": "ALT-0020",
+      "siteId": "SITE-05",
+      "occurredAt": "2026-07-29T13:55:00+09:30",
+      "type": "SENSOR_FAULT",
+      "severity": "MEDIUM",
+      "status": "INVESTIGATING",
+      "description": "Revenue meter and site controller energy totals diverged by 1.9 MWh across the trading day, above the 0.5 percent reconciliation tolerance. Settlement impact is under review with the metering coordinator."
+    }
+  ]
+}

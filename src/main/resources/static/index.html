@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Incident Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --panel:#E9EDEC; --surface:#fff; --ink:#13181B; --muted:#616C73;
+  --rule:#CFD6D4; --rule-soft:#E2E7E6; --accent:#0B5F5A;
+  --critical:#A8271A; --high:#9A5B06; --medium:#125E7A; --low:#69747A;
+  --latch:#FBF7E8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--panel);color:var(--ink);
+  font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13px;line-height:1.5}
+.sans{font-family:'IBM Plex Sans',system-ui,sans-serif}
+
+header{background:var(--surface);border-bottom:1px solid var(--rule);
+  padding:14px 20px;position:sticky;top:0;z-index:10}
+.masthead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+h1{font-size:15px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;margin:0}
+.sub{color:var(--muted);font-size:11px;letter-spacing:.06em}
+
+.controls{display:flex;gap:10px;align-items:flex-end;margin-top:12px;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:4px}
+label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+select,button,textarea{font-family:inherit;font-size:13px}
+select{padding:6px 8px;border:1px solid var(--rule);background:var(--surface);
+  color:var(--ink);border-radius:2px;min-width:190px}
+button{padding:7px 14px;border:1px solid var(--accent);background:var(--accent);
+  color:#fff;border-radius:2px;cursor:pointer;letter-spacing:.04em}
+button:hover:not(:disabled){background:#0a4f4b}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.ghost{background:transparent;color:var(--accent)}
+button.ghost:hover:not(:disabled){background:#dce8e7}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.banner{margin-top:10px;padding:8px 11px;border-left:3px solid var(--accent);
+  background:#dfeceb;font-size:12px}
+.banner.warn{border-left-color:var(--high);background:#faf0df}
+
+main{padding:16px 20px 60px;max-width:1180px}
+.meta{color:var(--muted);font-size:11px;letter-spacing:.06em;margin-bottom:10px;
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+
+.row{display:grid;grid-template-columns:4px 1fr;background:var(--surface);
+  border:1px solid var(--rule-soft);border-left:none;margin-bottom:6px;
+  cursor:pointer;transition:border-color .12s}
+.row:hover{border-color:var(--rule)}
+.row .gutter{background:var(--sev)}
+/* Unacknowledged alerts stay "latched", like an annunciator window that holds
+   until someone acknowledges it. Acknowledging is what quiets the row. */
+.row.latched .body{background:var(--latch)}
+.body{padding:10px 14px;min-width:0}
+.line1{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:5px}
+.sev{font-weight:600;font-size:10px;letter-spacing:.14em;color:var(--sev)}
+.site{font-weight:500}
+.type,.when{color:var(--muted);font-size:11px}
+.chip{font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  padding:2px 6px;border:1px solid var(--rule);border-radius:2px;color:var(--muted)}
+.desc{color:#3B454B;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai{margin-top:7px;padding-top:7px;border-top:1px dashed var(--rule-soft);
+  display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;font-size:12px}
+.signal{font-weight:600;font-size:10px;letter-spacing:.1em;color:var(--accent)}
+.signal.q{color:var(--muted)}
+.action{color:#3B454B}
+.tag{font-size:10px;letter-spacing:.08em;color:var(--muted);border:1px dotted var(--rule);padding:1px 5px}
+
+.empty{background:var(--surface);border:1px solid var(--rule-soft);padding:34px 20px;text-align:center}
+.empty p{color:var(--muted);margin:0 0 14px}
+
+/* Detail */
+.scrim{position:fixed;inset:0;background:rgba(19,24,27,.34);z-index:20}
+.panel{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--surface);
+  border-left:1px solid var(--rule);z-index:21;overflow-y:auto;padding:20px 22px 40px}
+.panel h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 3px}
+.close{position:absolute;top:14px;right:16px;background:none;border:none;color:var(--muted);
+  font-size:18px;padding:4px 8px;cursor:pointer}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:5px 16px;margin:14px 0;font-size:12px}
+.facts dt{color:var(--muted);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding-top:2px}
+.facts dd{margin:0}
+.block{border:1px solid var(--rule-soft);padding:11px 13px;margin-bottom:16px}
+.block h3{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+textarea{width:100%;padding:8px;border:1px solid var(--rule);border-radius:2px;
+  resize:vertical;min-height:74px;font-family:'IBM Plex Sans',system-ui,sans-serif}
+.count{font-size:11px;color:var(--muted)}
+.count.over{color:var(--critical)}
+.note{padding:9px 0;border-bottom:1px solid var(--rule-soft)}
+.note:last-child{border-bottom:none}
+.note-head{display:flex;gap:9px;align-items:baseline;font-size:10px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+/* System-written notes stay in mono; operator notes switch to sans. The two
+   voices in the timeline are distinguishable before you read a word of them. */
+.note-body.system{font-size:12px;color:#3B454B}
+.note-body.operator{font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:13px}
+.err{color:var(--critical);font-size:12px;margin-top:7px}
+.hint{font-size:11px;color:var(--muted);margin-top:6px}
+
+@media (max-width:620px){ .panel{width:100%} .desc{white-space:normal} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="masthead">
+    <h1>Incident Board</h1>
+    <span class="sub" id="clock"></span>
+  </div>
+  <div class="controls">
+    <div class="field">
+      <label for="site">Site</label>
+      <select id="site"><option value="">All sites</option></select>
+    </div>
+    <div class="field">
+      <label for="status">Status</label>
+      <select id="status">
+        <option value="open">Open only</option>
+        <option value="all">All statuses</option>
+        <option value="new">New</option>
+        <option value="acknowledged">Acknowledged</option>
+        <option value="investigating">Investigating</option>
+        <option value="resolved">Resolved</option>
+        <option value="dismissed">Dismissed</option>
+      </select>
+    </div>
+    <button id="analyze">Run AI analysis</button>
+  </div>
+  <div id="banner"></div>
+</header>
+
+<main>
+  <div class="meta">
+    <span id="shown"></span>
+    <span id="hidden"></span>
+  </div>
+  <div id="list"></div>
+</main>
+
+<div id="detail"></div>
+
+<script>
+const SEV = {critical:'var(--critical)', high:'var(--high)', medium:'var(--medium)', low:'var(--low)'};
+const STATUSES = ['new','acknowledged','investigating','resolved','dismissed'];
+let alerts = [], openId = null, busy = false;
+
+const $ = id => document.getElementById(id);
+const esc = s => (s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function when(iso){
+  const d = new Date(iso), mins = Math.round((Date.now() - d) / 60000);
+  if (mins < 60) return mins + 'm ago';
+  if (mins < 1440) return Math.round(mins/60) + 'h ago';
+  return Math.round(mins/1440) + 'd ago';
+}
+const stamp = iso => new Date(iso).toLocaleString([], {dateStyle:'medium', timeStyle:'short'});
+const words = s => (s || '').replace(/_/g,' ');
+
+async function api(path, opts){
+  const res = await fetch('/api' + path, {
+    headers: {'content-type':'application/json'}, ...opts
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!res.ok) throw new Error(data?.error || ('Request failed with ' + res.status));
+  return data;
+}
+
+async function loadSites(){
+  const sites = await api('/sites');
+  for (const s of sites){
+    const o = document.createElement('option');
+    o.value = s.id;
+    o.textContent = s.name + ' \u00b7 ' + s.region;
+    $('site').appendChild(o);
+  }
+}
+
+const filter = () => ({siteId: $('site').value, status: $('status').value});
+
+async function loadAlerts(){
+  const f = filter();
+  const q = new URLSearchParams();
+  if (f.siteId) q.set('siteId', f.siteId);
+  if (f.status) q.set('status', f.status);
+  const data = await api('/alerts?' + q);
+  alerts = data.alerts;
+  render(data.hiddenCount);
+}
+
+function render(hiddenCount){
+  $('shown').textContent = alerts.length + (alerts.length === 1 ? ' alert' : ' alerts');
+  $('hidden').textContent = hiddenCount > 0 ? hiddenCount + ' closed alerts hidden' : '';
+
+  if (!alerts.length){
+    $('list').innerHTML = `<div class="empty">
+      <p>No alerts match this filter.</p>
+      <button class="ghost" onclick="resetFilters()">Show all open alerts</button></div>`;
+    return;
+  }
+
+  $('list').innerHTML = alerts.map(a => {
+    // null path means no run has reached this alert; skipped means a run
+    // considered it and deliberately did not classify it. The row says which.
+    let ai = '';
+    if (a.aiSignal){
+      ai = `<div class="ai">
+        <span class="signal">${esc(words(a.aiSignal))}</span>
+        <span class="action sans">${esc(a.aiAction)}</span>
+        ${a.aiPath === 'fallback' ? '<span class="tag">keyword fallback</span>' : ''}</div>`;
+    } else if (a.aiPath === 'skipped'){
+      ai = `<div class="ai"><span class="signal q">not analysed</span>
+        <span class="action sans">Ordered by time; ${esc(a.severity)} alerts skip AI analysis</span></div>`;
+    }
+    return `<article class="row ${a.status === 'new' ? 'latched' : ''}"
+        style="--sev:${SEV[a.severity]}" onclick="openAlert('${a.id}')"
+        tabindex="0" onkeydown="if(event.key==='Enter')openAlert('${a.id}')">
+      <div class="gutter"></div>
+      <div class="body">
+        <div class="line1">
+          <span class="sev">${esc(a.severity)}</span>
+          <span class="site">${esc(a.siteName)}</span>
+          <span class="type">${esc(words(a.type))}</span>
+          <span class="when">${when(a.occurredAt)}</span>
+          <span class="chip">${esc(a.status)}</span>
+        </div>
+        <div class="desc sans">${esc(a.description)}</div>
+        ${ai}
+      </div></article>`;
+  }).join('');
+}
+
+function resetFilters(){
+  $('site').value = ''; $('status').value = 'open'; loadAlerts();
+}
+
+async function analyze(){
+  if (busy) return;
+  busy = true;
+  const btn = $('analyze');
+  btn.disabled = true; btn.textContent = 'Analysing\u2026';
+  try {
+    const r = await api('/alerts/analyze', {method:'POST', body: JSON.stringify(filter())});
+    await loadAlerts();
+    const bits = [`${r.analyzed} alerts analysed`];
+    if (r.llm) bits.push(`${r.llm} by model`);
+    if (r.fallback) bits.push(`${r.fallback} by keyword fallback`);
+    if (r.skipped) bits.push(`${r.skipped} skipped as medium or low`);
+    // A silent degradation to keyword matching still produces plausible-looking
+    // output, so the banner has to say it happened.
+    const warn = r.fallback > 0;
+    $('banner').innerHTML = `<div class="banner ${warn ? 'warn' : ''}">${esc(bits.join(' \u00b7 '))}${
+      warn && !r.apiKeyConfigured ? ' \u2014 ANTHROPIC_API_KEY is not set' : ''}</div>`;
+  } catch (e){
+    $('banner').innerHTML = `<div class="banner warn">${esc(e.message)}</div>`;
+  } finally {
+    busy = false; btn.disabled = false; btn.textContent = 'Run AI analysis';
+  }
+}
+
+async function openAlert(id){
+  openId = id;
+  const d = await api('/alerts/' + id);
+  const a = d.alert;
+  const options = STATUSES.map(s =>
+    `<option value="${s}" ${s === a.status ? 'selected' : ''}>${s}</option>`).join('');
+
+  let aiBlock = '';
+  if (a.aiSignal){
+    aiBlock = `<div class="block"><h3>AI analysis</h3>
+      <div><span class="signal">${esc(words(a.aiSignal))}</span></div>
+      <div class="sans" style="margin-top:5px">${esc(a.aiAction)}</div>
+      <div class="hint">${esc(a.aiPath)} \u00b7 rules ${esc(a.aiRuleVersion)} \u00b7 ${stamp(a.aiRunAt)}</div>
+      <div class="hint">Advisory only. It does not change severity or status.</div></div>`;
+  } else if (a.aiPath === 'skipped'){
+    aiBlock = `<div class="block"><h3>AI analysis</h3>
+      <div class="hint">Skipped. Only critical and high alerts are analysed.
+      Last run ${stamp(a.aiRunAt)}.</div></div>`;
+  } else {
+    aiBlock = `<div class="block"><h3>AI analysis</h3>
+      <div class="hint">Not yet analysed. Run AI analysis to classify this alert.</div></div>`;
+  }
+
+  $('detail').innerHTML = `<div class="scrim" onclick="closeDetail()"></div>
+    <aside class="panel" role="dialog" aria-label="Alert detail">
+      <button class="close" onclick="closeDetail()" aria-label="Close">\u00d7</button>
+      <h2 style="color:${SEV[a.severity]}">${esc(a.severity)} \u00b7 ${esc(words(a.type))}</h2>
+      <div class="sub">${esc(a.id)}</div>
+      <dl class="facts">
+        <dt>Site</dt><dd>${esc(a.siteName)} \u00b7 ${esc(a.region)}</dd>
+        <dt>Occurred</dt><dd>${stamp(a.occurredAt)}</dd>
+        <dt>Status</dt><dd>${esc(a.status)}</dd>
+      </dl>
+      <div class="block"><h3>Description</h3>
+        <div class="sans">${esc(a.description)}</div></div>
+      ${aiBlock}
+      <div class="block"><h3>Change status</h3>
+        <div style="display:flex;gap:8px">
+          <select id="newStatus">${options}</select>
+          <button id="saveStatus" onclick="saveStatus()">Change status</button>
+        </div>
+        <div id="statusErr" class="err"></div></div>
+      <div class="block"><h3>Add a follow-up note</h3>
+        <textarea id="noteBody" maxlength="2100"
+          oninput="countNote()" placeholder="What did you find, or what did you do?"></textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px">
+          <span class="count" id="noteCount">0 / 2000</span>
+          <button id="saveNote" onclick="saveNote()">Add note</button></div>
+        <div class="hint">Notes cannot be edited or deleted once added.</div>
+        <div id="noteErr" class="err"></div></div>
+      <div class="block"><h3>History</h3>${
+        d.notes.length
+          ? d.notes.map(n => `<div class="note">
+              <div class="note-head"><span>${esc(n.author)}</span><span>${stamp(n.createdAt)}</span></div>
+              <div class="note-body ${n.author === 'system' ? 'system' : 'operator'}">${esc(n.body)}</div>
+            </div>`).join('')
+          : '<div class="hint">Nothing recorded yet. Status changes and notes appear here.</div>'
+      }</div>
+    </aside>`;
+}
+
+function closeDetail(){ openId = null; $('detail').innerHTML = ''; }
+
+function countNote(){
+  const n = $('noteBody').value.trim().length;
+  const el = $('noteCount');
+  el.textContent = n + ' / 2000';
+  el.className = 'count' + (n > 2000 ? ' over' : '');
+}
+
+async function saveStatus(){
+  if (busy) return;
+  busy = true;
+  const btn = $('saveStatus'); btn.disabled = true;
+  $('statusErr').textContent = '';
+  try {
+    await api('/alerts/' + openId + '/status',
+      {method:'PATCH', body: JSON.stringify({status: $('newStatus').value})});
+    await loadAlerts();
+    await openAlert(openId);
+  } catch (e){
+    $('statusErr').textContent = e.message;
+  } finally { busy = false; if ($('saveStatus')) $('saveStatus').disabled = false; }
+}
+
+async function saveNote(){
+  if (busy) return;
+  busy = true;
+  // The button is disabled for the whole round trip. In an append-only log a
+  // double submission is permanent, so the cheap guard is worth having.
+  const btn = $('saveNote'); btn.disabled = true;
+  $('noteErr').textContent = '';
+  try {
+    await api('/alerts/' + openId + '/notes',
+      {method:'POST', body: JSON.stringify({body: $('noteBody').value})});
+    await openAlert(openId);
+  } catch (e){
+    $('noteErr').textContent = e.message;
+    if ($('saveNote')) $('saveNote').disabled = false;
+  } finally { busy = false; }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(); });
+$('site').addEventListener('change', loadAlerts);
+$('status').addEventListener('change', loadAlerts);
+$('analyze').addEventListener('click', analyze);
+$('clock').textContent = new Date().toLocaleString([], {dateStyle:'medium', timeStyle:'short'});
+
+loadSites().then(loadAlerts).catch(e => {
+  $('list').innerHTML = `<div class="empty"><p>Could not load the board: ${esc(e.message)}</p></div>`;
+});
+</script>
+</body>
+</html>
