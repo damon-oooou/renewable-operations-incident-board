@@ -132,7 +132,7 @@ CREATE INDEX idx_notes_alert   ON notes(alert_id, created_at);
 Notes on the choices:
 
 - **`sites.id` and `alerts.id` are `TEXT`, `notes.id` is an autoincrementing integer.** Sites and alerts arrive from outside the system carrying their own identifiers, so those are natural keys and preserving them keeps the board's ids matching whatever an operator sees in SCADA. Notes are created by the application and have no external identity, so a surrogate key is correct. The tables genuinely differ in origin, and the key strategy reflects that rather than being applied uniformly out of habit.
-- **`occurred_at` rather than `created_at`** on alerts, because the meaningful time is when the condition occurred at the site, not when the row was written.
+- **`occurred_at` rather than `created_at`** on alerts, because the meaningful time is when the condition occurred at the site, not when the row was written.   
 - **`CHECK` constraints on every enum column.** With no ORM validating on the way in, these carry more weight than they would under JPA: they are what guarantees a lowercase vocabulary in the file, and they still hold if someone edits it directly with the `sqlite3` CLI — which, for a take-home a reviewer will poke at, is a realistic scenario.
 - **`notes` starts empty.** Only `sites` and `alerts` are seeded. Every row in `notes` is the product of an operator action or a status change within the running application.
 

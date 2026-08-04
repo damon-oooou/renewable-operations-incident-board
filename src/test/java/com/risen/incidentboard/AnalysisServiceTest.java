@@ -67,7 +67,10 @@ class AnalysisServiceTest {
         AnalysisResult result = new AnalysisService(repo, llm, new KeywordAlertClassifier(), "v1")
                 .analyze(null, AlertStatus.OPEN);
 
-        verifyNoInteractions(llm);
+        // Not verifyNoInteractions: the service legitimately calls isConfigured()
+        // when building the result, so the mock IS touched. What matters is that
+        // the alert was never sent for classification.
+        verify(llm, never()).classify(any());
         // The run stamp is still written: that is what distinguishes "we decided
         // not to classify this" from "no run has reached it".
         verify(repo).markSkipped(eq("ALT-0002"), any(), eq("v1"));
