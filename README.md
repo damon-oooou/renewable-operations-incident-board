@@ -143,7 +143,7 @@ src/main/java/com/risen/incidentboard/
 ├── seed/DataSeeder                 idempotent; normalises case and converts to UTC
 └── web/                            controllers, DTOs, filter parsing, error mapping
 
-src/main/resources/
+frontend/src/main/resources/
 ├── application.yaml                datasource, AI config, .env import
 ├── schema.sql                      hand-written DDL with CHECK constraints
 ├── seed/alerts.json                8 sites, 20 alerts — uppercase, source offsets
@@ -414,52 +414,15 @@ that the two form one time-ordered sequence fails against correct output. The
 test checks each band on its own.
 
 
-## Assumptions
+## Possible Improvements
 
-- Single user. No auth; `author` is a fixed placeholder for operator notes.
-- Alerts are read-only apart from status — severity and description are owned by
-  the source system.
-- Small dataset, so no pagination and ordering is computed per request.
-- Descriptions are untrusted third-party text: rendered as plain text, and passed
-  to the model inside a delimited block labelled as untrusted, so that
-  instruction-like text in a vendor field reads as content rather than direction.
+- **Authentication and real authorship.** Notes are currently attributed to a
+  fixed placeholder. With auth in place each note would carry its actual author,
+  which is what makes a timeline useful for a team rather than an individual.
+- **Two-way sync with the source system.** Severity and description are treated
+  as read-only here because the source system owns them. A production version
+  would consume updates rather than snapshot them once.
+- **Pagination and stored ordering.** Ordering is computed per request, which is
+  fine at this dataset size. At scale the priority ordering would be persisted
+  and paginated, so a scroll position stays stable across reloads.
 
-## Known limitations
-
-- **Double submission** is prevented by disabling the button for the round trip.
-  That covers the impatient double-click but not a retry at the network layer,
-  which in an append-only log would leave a permanent duplicate. An idempotency
-  key is the real fix.
-- **Classification quality is not measured.** The cheapest instrument would be
-  logging the position an alert held when it was opened: if operators
-  consistently skip the top-ranked alert, the ranking is wrong.
-- **Stale rule versions are detectable but not acted on.** Nothing yet flags a row
-  classified under a superseded version.
-- **Related alerts are not grouped.** The fixture contains a causal chain at Broken
-  Hill — HVAC failure, widening cell imbalance, rack contactor trip, across 23
-  minutes. Showing those as three peers is misleading, and grouping them is the
-  most valuable next feature.
-- **Timezone display** is viewer-local. Site-local is equally defensible and needs
-  an operator to arbitrate.
-
-## AI usage disclosure
-
-This project was built with heavy use of Claude. The design decisions —
-severity/priority separation, the closed signal set over a numeric score,
-persisting the classification on the alert row, append-only notes carrying status
-history — were mine, argued out across a design conversation before any code was
-written. Claude wrote most of the implementation from that design, and I reviewed
-and corrected it.
-
-Worth stating plainly, since the code was not run before submission: the sandbox
-Claude worked in had no Java compiler and no access to Maven Central, so nothing
-Java-side was compiled there. The Boot 4 details above — Jackson 3's package move,
-the `spring-boot-starter-webmvc` rename, springdoc's 3.x line — were checked
-against current sources rather than recalled, because Boot 4 post-dates the
-model's training data. What *was* verified, against real SQLite with the
-real fixture: `schema.sql` executes, the `CHECK` constraints and foreign keys
-reject bad input, and the ordering query produces correct output for severity
-bands, signal ranking within a band, null signals sorting at the `none` rank, and
-the status filter. That verification also caught a bug in my own test — I had
-asserted that medium and low alerts form one time-ordered sequence, when they are
-separate bands and the oldest medium legitimately precedes the newest low.
