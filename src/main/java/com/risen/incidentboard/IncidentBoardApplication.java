@@ -14,7 +14,10 @@ import java.util.Arrays;
 public class IncidentBoardApplication {
 
     private static final Logger log = LoggerFactory.getLogger(IncidentBoardApplication.class);
-    private static final Path DB_FILE = Path.of("incident-board.db");
+    /** Must agree with spring.datasource.url, which reads the same variable.
+     *  --reset runs before Spring exists, so it cannot ask the Environment. */
+    private static final Path DB_FILE = Path.of(
+            System.getenv().getOrDefault("DB_PATH", "incident-board.db"));
 
     public static void main(String[] args) {
         // --reset acts here, before Spring builds the DataSource, so ordering is
@@ -31,8 +34,8 @@ public class IncidentBoardApplication {
         try {
             boolean existed = Files.deleteIfExists(DB_FILE);
             // SQLite may leave these alongside the database in WAL mode.
-            Files.deleteIfExists(Path.of("incident-board.db-wal"));
-            Files.deleteIfExists(Path.of("incident-board.db-shm"));
+            Files.deleteIfExists(Path.of(DB_FILE + "-wal"));
+            Files.deleteIfExists(Path.of(DB_FILE + "-shm"));
             log.info(existed
                     ? "--reset: deleted {}, database will be recreated and reseeded"
                     : "--reset: no existing database at {}, nothing to delete", DB_FILE);

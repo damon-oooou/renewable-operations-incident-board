@@ -23,9 +23,13 @@ WORKDIR /app
 # Wildcard because the artifact name comes from your pom, not from this file.
 COPY --from=build /app/target/*.jar app.jar
 
-# Where the volume gets mounted. Overridden by the Railway service variable;
-# this default means the image is still runnable with plain `docker run`.
-ENV DB_PATH=/data/incident-board.db
+# DB_PATH is deliberately NOT set here. Unset, the app writes to the working
+# directory, which on a container platform is ephemeral -- the board resets to
+# the fixture on every restart, which is a reasonable demo default.
+#
+# For persistence, mount a volume and set DB_PATH as a service variable to a
+# path inside it. Baking a default in here would force every deployment to
+# provide that mount, whether it wanted persistence or not.
 
 # No USER directive on purpose: Railway mounts volumes as root, and a non-root
 # container would need RAILWAY_RUN_UID=0 set on the service to write to one.

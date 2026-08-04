@@ -55,6 +55,61 @@ Everything works. Alerts classify by keyword matching instead of the model, rows
 are marked `keyword fallback`, and the banner says the key is missing. This is the
 designed degraded path, not an error state — see "AI analysis" below.
 
+## Deploy (Railway)
+
+The app is a single container with a SQLite file, so the only real deployment
+question is where that file lives.
+
+**Anything outside a Railway volume is wiped on every deploy.** Without a volume,
+each redeploy resets the board to the fixture — which is arguably fine for a demo,
+but means a reviewer's notes vanish the next time you push. Decide which you want
+before you start.
+
+### With persistence (recommended)
+
+1. Push the repo to GitHub. Railway detects the `Dockerfile` and ignores Nixpacks.
+2. **New Project → Deploy from GitHub repo**, pick this repository.
+3. **Settings → Volumes → Add Volume**, mount path `/data`.
+4. **Variables**, set:
+
+   | Variable | Value |
+   |---|---|
+   | `DB_PATH` | `/data/incident-board.db` |
+   | `ANTHROPIC_API_KEY` | your key |
+
+   `PORT` is injected by Railway; `application.yaml` reads it via `${PORT:8080}`.
+5. **Settings → Networking → Generate Domain**.
+
+### Without persistence
+
+Skip step 3 and the `DB_PATH` row of step 4. With `DB_PATH` unset the app writes
+to the working directory, which is ephemeral, so the database is recreated from
+the fixture on every restart. The demo is always in a known state and nothing a
+reviewer types survives.
+
+Startup logs the resolved path either way (`Database file: …`), and warns if it
+had to create the directory — which is how you tell "no volume, as intended" from
+"volume expected but not mounted".
+
+### Notes
+
+- **One replica only.** SQLite is a file with file-level write locking; two
+  instances writing the same volume will corrupt it. Do not scale this service
+  horizontally without moving to Postgres first.
+- **Volumes are not mounted during the build.** That is why the Dockerfile skips
+  tests: `OrderingIntegrationTest` writes a SQLite file, and there is no volume at
+  build time. Run tests locally or in CI.
+- **The container runs as root.** Railway mounts volumes as root, so a non-root
+  user would need `RAILWAY_RUN_UID=0` set on the service to write to `/data`.
+- **The deployed board is shared and mutable.** Anyone with the URL can change a
+  status or add a note, and notes cannot be deleted. If you send the link to an
+  interviewer, that is the state they will see — including whatever the previous
+  visitor wrote.
+- **Every AI analysis run costs tokens** against the key you set. The board is
+  fully usable without `ANTHROPIC_API_KEY`; it falls back to keyword matching and
+  labels rows accordingly.
+
+
 ## Project structure
 
 ```
