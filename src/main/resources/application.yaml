@@ -1,14 +1,27 @@
+server:
+  # Railway assigns the port at runtime and the container must bind to it.
+  # Without this the deploy builds, starts, and is unreachable.
+  port: ${PORT:8080}
+
 spring:
-  config:
-    import: "optional:file:.env[.properties]"
   application:
     name: incident-board
+
+  config:
+    # Spring Boot does not read .env files by default. This import makes it
+    # optional: the app starts fine without one, and a real OS environment
+    # variable still wins if both are present.
+    # The [.properties] hint tells Boot how to parse the file.
+    import: "optional:file:.env[.properties]"
 
   datasource:
     # foreign_keys=on travels with the JDBC URL: SQLite disables FK enforcement
     # per connection by default, so setting it once at startup would not survive
     # the pool handing out a second connection.
-    url: "jdbc:sqlite:incident-board.db?foreign_keys=on"
+    # DB_PATH lets the deployment target choose where the file lives. Locally it
+    # defaults to the working directory; on Railway it points at a mounted volume,
+    # because anything outside a volume is wiped on every deploy.
+    url: "jdbc:sqlite:${DB_PATH:incident-board.db}?foreign_keys=on"
     driver-class-name: org.sqlite.JDBC
     hikari:
       # SQLite serialises writes at the file level. One connection avoids
@@ -22,6 +35,9 @@ spring:
       schema-locations: classpath:schema.sql
 
 ai:
+  # Resolved from .env or from the OS environment, whichever is present.
+  # Defaults to empty so the app runs without a key and falls back to keyword
+  # matching, rather than failing to start.
   api-key: ${ANTHROPIC_API_KEY:}
   api-url: https://api.anthropic.com/v1/messages
   model: claude-haiku-4-5-20251001
