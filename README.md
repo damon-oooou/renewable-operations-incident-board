@@ -3,7 +3,12 @@
 A small board for a renewable energy operations team: triage open alerts from solar
 and battery sites, understand what happened, and record follow-up actions.
 
+**Live demo:** <https://renewable-operations-incident-board-production.up.railway.app>
+
 Java 17 · Spring Boot 4.0.7 · SQLite via JdbcClient · vanilla JS front end.
+
+The demo runs without a persistent volume, so the board resets to the seed fixture
+on every restart. Status changes and notes you make there are real, but temporary.
 
 Design notes, including the decisions behind the ordering model and the AI layer,
 are in [`docs/design-doc.md`](docs/design-doc.md).
@@ -56,6 +61,9 @@ are marked `keyword fallback`, and the banner says the key is missing. This is t
 designed degraded path, not an error state — see "AI analysis" below.
 
 ## Deploy (Railway)
+
+Deployed at
+<https://renewable-operations-incident-board-production.up.railway.app>.
 
 The app is a single container with a SQLite file, so the only real deployment
 question is where that file lives.
