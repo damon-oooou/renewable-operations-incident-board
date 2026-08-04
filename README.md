@@ -5,23 +5,40 @@ and battery sites, understand what happened, and record follow-up actions.
 
 Java 17 · Spring Boot 4.0.7 · SQLite via JdbcClient · vanilla JS front end.
 
+Design notes, including the decisions behind the ordering model and the AI layer,
+are in [`docs/design-doc.md`](docs/design-doc.md).
+
 ## Run it
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...   # optional; see "Without a key" below
-./mvnw spring-boot:run
+git clone https://github.com/damon-ooooou/renewable-operations-incident-board.git
+cd renewable-operations-incident-board
 ```
 
-On Windows PowerShell:
+Copy `.env.example` to `.env` and put your key in it:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+`.env` is gitignored. Spring Boot does not read `.env` files by default; this
+project opts in with `spring.config.import: "optional:file:.env[.properties]"`,
+so the app also starts fine without one. An OS environment variable works just as
+well and takes precedence:
 
 ```powershell
-$env:ANTHROPIC_API_KEY = "sk-ant-..."
-.\mvnw spring-boot:run
+$env:ANTHROPIC_API_KEY = "sk-ant-..."   # PowerShell
+```
+
+Then:
+
+```bash
+./mvnw spring-boot:run
 ```
 
 Board: <http://localhost:8080>  ·  API docs: <http://localhost:8080/swagger-ui.html>
 
-The database is a file, `incident-board.db`, created on first run.
+The database is a file, `incident-board.db`, created on first run and gitignored.
 
 ```bash
 ./mvnw spring-boot:run -Dspring-boot.run.arguments=--reset   # fresh database
@@ -38,6 +55,52 @@ Everything works. Alerts classify by keyword matching instead of the model, rows
 are marked `keyword fallback`, and the banner says the key is missing. This is the
 designed degraded path, not an error state — see "AI analysis" below.
 
+## Project structure
+
+```
+src/main/java/com/risen/incidentboard/
+├── IncidentBoardApplication.java   entry point; handles --reset before Spring starts
+├── domain/                         records and enums, no framework annotations
+│   ├── Alert · Site · Note         immutable row types
+│   ├── Severity · AlertStatus      ground truth and workflow vocabularies
+│   ├── AiSignal · AiPath           the closed classification set, and how it was reached
+│   └── DbValues                    the only place Java and SQLite conventions meet
+├── repo/                           one interface + one JdbcClient implementation each
+│   ├── AlertRepository             ← the ordering query lives here
+│   ├── NoteRepository              insert and read only: no update, no delete
+│   ├── SiteRepository
+│   └── RowMappers                  explicit column → record mapping
+├── service/
+│   ├── AlertService                status transitions, note validation
+│   ├── AnalysisService             run scope, LLM → fallback degradation
+│   └── classifier/
+│       ├── AlertClassifier         the seam that makes failure testable
+│       ├── LlmAlertClassifier      throws on every failure mode
+│       └── KeywordAlertClassifier  never throws
+├── seed/DataSeeder                 idempotent; normalises case and converts to UTC
+└── web/                            controllers, DTOs, filter parsing, error mapping
+
+src/main/resources/
+├── application.yaml                datasource, AI config, .env import
+├── schema.sql                      hand-written DDL with CHECK constraints
+├── seed/alerts.json                8 sites, 20 alerts — uppercase, source offsets
+└── static/index.html               the whole front end
+```
+
+Three things the layout is saying:
+
+**`domain/` has no framework imports.** Records and enums only. Dropping the ORM
+is what made that possible, and it means the ordering rules and the signal scale
+can be read without knowing anything about Spring.
+
+**Each repository is an interface plus one implementation.** The service layer
+depends on the interface, so the unit tests run against mocks with no database,
+and swapping SQLite for Postgres touches one package.
+
+**`NoteRepository` exposes an insert and two reads and nothing else.** The
+append-only rule is enforced by the absence of methods, not by discipline.
+
+
 ## What it does
 
 **Ordering.** Severity first, always: critical, high, medium, low. Within the
@@ -50,6 +113,72 @@ on load — as default filter state, not a hard exclusion. The count of what is
 hidden is shown, and "All statuses" reaches it.
 
 **Detail.** Open an alert to change its status or add a follow-up note.
+
+## API
+
+Browsable at `/swagger-ui.html`. Six endpoints.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/sites` | All sites, including any with no current alerts |
+| `GET` | `/api/alerts?siteId=&status=` | Filtered, ordered list plus `hiddenCount` |
+| `GET` | `/api/alerts/{id}` | One alert with its full note timeline |
+| `POST` | `/api/alerts/analyze` | Classify the alerts passing the current filter |
+| `PATCH` | `/api/alerts/{id}/status` | Change status; appends the system note |
+| `POST` | `/api/alerts/{id}/notes` | Append a note |
+
+`status` accepts `open` (the default), `all`, or any single status.
+
+```jsonc
+// GET /api/alerts
+{
+  "alerts": [{
+    "id": "ALT-0003",
+    "siteId": "SITE-03", "siteName": "Broken Hill BESS", "region": "NSW",
+    "occurredAt": "2026-08-02T23:05:00Z",
+    "type": "protection_trip", "severity": "critical", "status": "new",
+    "description": "DC contactor on rack B04-07 opened on overtemperature…",
+    "aiSignal": "safety_hazard",
+    "aiAction": "Restrict site access, dispatch crew",
+    "aiPath": "llm",
+    "aiRunAt": "2026-08-04T01:12:33Z",
+    "aiRuleVersion": "v1"
+  }],
+  "hiddenCount": 9
+}
+```
+
+```jsonc
+// POST /api/alerts/analyze   — body is the filter, not a list of ids
+{ "siteId": "SITE-03", "status": "open" }
+
+// 200, even when every call fell back
+{ "analyzed": 4, "llm": 0, "fallback": 3, "skipped": 1, "apiKeyConfigured": false }
+```
+
+Four decisions worth flagging to anyone reading the API.
+
+**Ordering is server-side.** The list arrives in display order and the client
+renders it as given. Two independent sort implementations would eventually
+disagree, and the disagreement would show up as rows that move when you navigate.
+
+**Analyze takes the filter, not alert ids.** The server resolves "what is on
+screen" with the same query that built the screen. Passing ids would let the
+client's idea of the current filter drift from the server's.
+
+**Analyze returns 200 even when the model never answered.** The keyword fallback
+is a designed path, not an error, so degradation is reported in the payload via
+`aiPath` and `apiKeyConfigured` rather than through the status code. A caller
+that only checks the status code still gets a usable result.
+
+**There is no endpoint to edit or delete a note.** `PATCH` and `DELETE` on a note
+return 405, because the method does not exist rather than because a guard rejects
+it.
+
+Errors are `{"error": "…"}` with `400` for validation and `404` for an unknown
+alert. An unknown id is 404 even when the body is also invalid — a bad id is not
+reported as a bad note.
+
 
 ## Severity and priority are different things
 
@@ -188,6 +317,39 @@ Two SQLite details worth flagging:
 `ai_rule_version` records which version of the signal set, keyword table and
 prompt produced a stored result, so that after a classifier change you can tell
 which rows are stale rather than holding a silent mixture.
+
+## Tests
+
+```bash
+./mvnw test                                    # everything
+./mvnw test -Dtest=OrderingIntegrationTest     # one class
+```
+
+Five classes, split by what they can prove without a database and what they can't.
+
+| Class | Covers |
+|---|---|
+| `KeywordAlertClassifierTest` | Priority order (first match wins), each signal, and that degenerate input never raises |
+| `AnalysisServiceTest` | LLM failure → fallback, medium/low recorded as `skipped` with a run stamp, run completes despite failure |
+| `AlertServiceTest` | Exactly one system note per status change, backward transitions allowed, no-op rejected with nothing written, note validation at the 2000-character boundary |
+| `StatusFilterTest` | Default hides closed alerts; `all` and naming a status directly both reach them |
+| `OrderingIntegrationTest` | Real SQLite, real fixture: severity bands never invert, each band newest-first, seeding is idempotent |
+
+Two deliberate choices here.
+
+**Failure modes are injected, not simulated.** `AlertClassifier` is an interface,
+so timeout, malformed JSON, an out-of-set signal and a missing API key are all
+just stubs. No network, no key, no flakiness in CI.
+
+**Ordering is tested against real SQLite, not mocked.** The ordering is a SQL
+`CASE` expression, so a mocked repository would test nothing. `OrderingIntegrationTest`
+writes to a throwaway database under `target/` and leaves your working data alone.
+
+One trap worth knowing, because I fell into it: **medium and low are separate
+bands.** The oldest medium legitimately precedes the newest low, so asserting
+that the two form one time-ordered sequence fails against correct output. The
+test checks each band on its own.
+
 
 ## Assumptions
 
