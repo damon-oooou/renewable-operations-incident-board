@@ -24,15 +24,7 @@ Copy `.env.example` to `.env` and put your key in it:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
-```
 
-`.env` is gitignored. Spring Boot does not read `.env` files by default; this
-project opts in with `spring.config.import: "optional:file:.env[.properties]"`,
-so the app also starts fine without one. An OS environment variable works just as
-well and takes precedence:
-
-```powershell
-$env:ANTHROPIC_API_KEY = "sk-ant-..."   # PowerShell
 ```
 
 Then:
@@ -50,72 +42,15 @@ The database is a file, `incident-board.db`, created on first run and gitignored
 ./mvnw test
 ```
 
-**Your changes survive a restart.** Seeding is skipped when the `alerts` table is
+**Locally,Your changes survive a restart.** Seeding is skipped when the `alerts` table is
 non-empty, so a status change or a note you add is still there next time. Use
 `--reset` when you want the fixture back.
 
-### Without a key
-
-Everything works. Alerts classify by keyword matching instead of the model, rows
-are marked `keyword fallback`, and the banner says the key is missing. This is the
-designed degraded path, not an error state — see "AI analysis" below.
 
 ## Deploy (Railway)
 
 Deployed at
 <https://renewable-operations-incident-board-production.up.railway.app>.
-
-The app is a single container with a SQLite file, so the only real deployment
-question is where that file lives.
-
-**Anything outside a Railway volume is wiped on every deploy.** Without a volume,
-each redeploy resets the board to the fixture — which is arguably fine for a demo,
-but means a reviewer's notes vanish the next time you push. Decide which you want
-before you start.
-
-### With persistence (recommended)
-
-1. Push the repo to GitHub. Railway detects the `Dockerfile` and ignores Nixpacks.
-2. **New Project → Deploy from GitHub repo**, pick this repository.
-3. **Settings → Volumes → Add Volume**, mount path `/data`.
-4. **Variables**, set:
-
-   | Variable | Value |
-   |---|---|
-   | `DB_PATH` | `/data/incident-board.db` |
-   | `ANTHROPIC_API_KEY` | your key |
-
-   `PORT` is injected by Railway; `application.yaml` reads it via `${PORT:8080}`.
-5. **Settings → Networking → Generate Domain**.
-
-### Without persistence
-
-Skip step 3 and the `DB_PATH` row of step 4. With `DB_PATH` unset the app writes
-to the working directory, which is ephemeral, so the database is recreated from
-the fixture on every restart. The demo is always in a known state and nothing a
-reviewer types survives.
-
-Startup logs the resolved path either way (`Database file: …`), and warns if it
-had to create the directory — which is how you tell "no volume, as intended" from
-"volume expected but not mounted".
-
-### Notes
-
-- **One replica only.** SQLite is a file with file-level write locking; two
-  instances writing the same volume will corrupt it. Do not scale this service
-  horizontally without moving to Postgres first.
-- **Volumes are not mounted during the build.** That is why the Dockerfile skips
-  tests: `OrderingIntegrationTest` writes a SQLite file, and there is no volume at
-  build time. Run tests locally or in CI.
-- **The container runs as root.** Railway mounts volumes as root, so a non-root
-  user would need `RAILWAY_RUN_UID=0` set on the service to write to `/data`.
-- **The deployed board is shared and mutable.** Anyone with the URL can change a
-  status or add a note, and notes cannot be deleted. If you send the link to an
-  interviewer, that is the state they will see — including whatever the previous
-  visitor wrote.
-- **Every AI analysis run costs tokens** against the key you set. The board is
-  fully usable without `ANTHROPIC_API_KEY`; it falls back to keyword matching and
-  labels rows accordingly.
 
 
 ## Project structure
@@ -149,20 +84,6 @@ frontend/src/main/resources/
 ├── seed/alerts.json                8 sites, 20 alerts — uppercase, source offsets
 └── static/index.html               the whole front end
 ```
-
-Three things the layout is saying:
-
-**`domain/` has no framework imports.** Records and enums only. Dropping the ORM
-is what made that possible, and it means the ordering rules and the signal scale
-can be read without knowing anything about Spring.
-
-**Each repository is an interface plus one implementation.** The service layer
-depends on the interface, so the unit tests run against mocks with no database,
-and swapping SQLite for Postgres touches one package.
-
-**`NoteRepository` exposes an insert and two reads and nothing else.** The
-append-only rule is enforced by the absence of methods, not by discipline.
-
 
 ## What it does
 
@@ -425,4 +346,5 @@ test checks each band on its own.
 - **Pagination and stored ordering.** Ordering is computed per request, which is
   fine at this dataset size. At scale the priority ordering would be persisted
   and paginated, so a scroll position stays stable across reloads.
-
+- **Split the list into four separate queues, and classify every alert.**
+Each severity would become its own visually separated queue — critical, then high, then medium, then low — with the AI signal reordering alerts inside the critical and high queues only. Medium and low would keep same order but still receive a signal and suggested action.
